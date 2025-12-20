@@ -57,7 +57,7 @@ void sistemi_sifirla()
     }
     printf("Simulasyon baslatildi. Sayfa boyutu: %d KB\n", SAYFA_BOYUTU_KB);
     memset(FIZIKSEL_RAM, 0, FIZIKSEL_RAM_BOYUTU);
-    printf("Fiziksel RAM içi sıfırlandı \n");
+    printf("Fiziksel RAM ici sifirlandi \n");
 }
 
 void init_heap_stack_maple()
@@ -115,9 +115,8 @@ uint32_t adres_cevir(uint32_t sanal_adres)
     // (1 << 12) - 1 işlemi 0xFFF (4095) değerini üretir.
     uint32_t offset = sanal_adres & ((1 << OFFSET_BITS) - 1);
 
-    printf("\n--- Adres Cevirisi ---\n");
-    printf("Sanal Adres (Hex): 0x%08X\n", sanal_adres);
-    printf("VPN: %u, Offset: %u\n", vpn, offset);
+    printf("\n--- Adres Cevirisi --- ");
+    printf("Sanal Adres (Hex): 0x%08X ", sanal_adres);
 
     // 3. Sayfa tablosunu kontrol et
     if (page_table[vpn].valid)
@@ -255,16 +254,12 @@ void show_RAM(int VPN, int size, bool from_end) {
 
 // --- MAIN ---
 int main()
-{
+{   
     sistemi_baslat();
-
-    stack_push(5);
-
-    uint8_t x = stack_pop();
-
-    printf("deger: %d", x);
-
-    x = stack_pop();
+    stack_push(0);
+    stack_push(0);
+    stack_push(255);
+    show_RAM(1000, 15, true);
 
     return 0;
 }
