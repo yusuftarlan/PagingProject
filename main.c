@@ -115,8 +115,6 @@ uint32_t adres_cevir(uint32_t sanal_adres)
     // (1 << 12) - 1 işlemi 0xFFF (4095) değerini üretir.
     uint32_t offset = sanal_adres & ((1 << OFFSET_BITS) - 1);
 
-    printf("\n--- Adres Cevirisi --- ");
-    printf("Sanal Adres (Hex): 0x%08X ", sanal_adres);
 
     // 3. Sayfa tablosunu kontrol et
     if (page_table[vpn].valid)
@@ -125,7 +123,6 @@ uint32_t adres_cevir(uint32_t sanal_adres)
 
         // 4. Fiziksel Adresi Hesapla: (PFN << 12) | Offset
         uint32_t fiziksel_adres = (pfn << OFFSET_BITS) | offset;
-        printf("Fiziksel Adres (Hex): 0x%08X\n", fiziksel_adres);
         return fiziksel_adres;
     }
     else
@@ -235,7 +232,8 @@ int32_t my_malloc(int boyut)
 
 
 void show_RAM(int VPN, int size, bool from_end) {
-    
+
+    printf("--%d numarali RAM sayfasi(%d adet veri)--", VPN, size);
     
     if (from_end == true) {
         uint32_t fiziksel_adres = adres_cevir(((VPN + 1) << 12) - 1);
@@ -268,8 +266,6 @@ int main()
     write_data_malloc(x, 0, 15);
     write_data_malloc(x, 1, 16);
     write_data_malloc(y, 0, 32);
-
-
     show_RAM(10, 15, 0);
 
     return 0;
