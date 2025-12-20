@@ -252,6 +252,13 @@ void show_RAM(int VPN, int size, bool from_end) {
     }
 }
 
+void write_data_malloc(int32_t malloc, int offset, uint8_t data){
+    
+    uint32_t fiziksel_adres = adres_cevir(malloc + offset);
+
+    FIZIKSEL_RAM[fiziksel_adres] = data;
+}
+
 // --- MAIN ---
 int main()
 {   
