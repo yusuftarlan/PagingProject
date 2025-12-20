@@ -263,10 +263,14 @@ void write_data_malloc(int32_t malloc, int offset, uint8_t data){
 int main()
 {   
     sistemi_baslat();
-    stack_push(0);
-    stack_push(0);
-    stack_push(255);
-    show_RAM(1000, 15, true);
+    int32_t x =  my_malloc(3);
+    int32_t y = my_malloc(3);
+    write_data_malloc(x, 0, 15);
+    write_data_malloc(x, 1, 16);
+    write_data_malloc(y, 0, 32);
+
+
+    show_RAM(10, 15, 0);
 
     return 0;
 }
