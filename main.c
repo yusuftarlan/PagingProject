@@ -234,6 +234,25 @@ int32_t my_malloc(int boyut)
     return baslangic_adresi;
 }
 
+
+void show_RAM(int VPN, int size, bool from_end) {
+    
+    
+    if (from_end == true) {
+        uint32_t fiziksel_adres = adres_cevir(((VPN + 1) << 12) - 1);
+        for(int i = 0; i < size; i ++ ){
+            if (i % 10 == 0) printf("\n");
+            printf("%02X ", FIZIKSEL_RAM[fiziksel_adres - i]);
+        }
+    } else {
+        uint32_t fiziksel_adres = adres_cevir(VPN  << 12);
+        for(int i = 0; i < size; i ++ ){
+            if (i % 10 == 0) printf("\n");
+            printf("%02X ", FIZIKSEL_RAM[fiziksel_adres + i]);
+        }
+    }
+}
+
 // --- MAIN ---
 int main()
 {
