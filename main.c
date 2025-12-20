@@ -35,6 +35,17 @@ int bos_frame_indis = 0;
 #define STACK_BASLANGIC_VPN 1000
 uint32_t heap_ptr;
 uint32_t stack_ptr;
+
+// --- FONKSİYON PROTOTİPLERİ ---
+void sistemi_sifirla();
+void init_heap_stack_maple();
+void sistemi_baslat();
+void sayfa_maple(uint32_t virtual_page_num, uint32_t physical_frame_num);
+uint32_t adres_cevir(uint32_t sanal_adres);
+void stack_push(char veri);
+uint8_t stack_pop();
+int32_t my_malloc(int boyut);
+
 // --- FONKSİYONLAR ---
 void sistemi_sifirla()
 {
@@ -156,6 +167,30 @@ void stack_push(char veri)
     printf("Stack Push: '%c' -> Sanal: 0x%X (VPN %d)\n", veri, stack_ptr, vpn);
 }
 
+uint8_t stack_pop()
+{
+   
+    // 1. ALT SINIR KONTROLÜ - Stack boş mu?
+    // Başlangıçta stack_ptr = 0x3E8FFF, hiç push yoksa bu değerdedir
+    uint32_t ust_sinir = ((STACK_BASLANGIC_VPN + 1) << 12) - 1;
+    if (stack_ptr >= ust_sinir)
+    {
+        printf("\n[HATA]: Stack bos! Pop yapilamaz.\n");
+        return 0; // Hata durumunda 0 döndür
+    }
+
+    // 2. Önce mevcut stack_ptr'den oku (push sonrası stack_ptr son yazılanı gösteriyor)
+    uint32_t fiziksel_adres = adres_cevir(stack_ptr);
+    uint8_t veri = FIZIKSEL_RAM[fiziksel_adres];
+
+    printf("Stack Pop: '%c' <- Sanal: 0x%X (VPN %d)\n", veri, stack_ptr, stack_ptr >> 12);
+
+    // 3. Sonra stack'i yukarı çek (adresi artır)
+    stack_ptr++;
+
+    return veri;
+}
+
 int32_t my_malloc(int boyut)
 {
     // 1. Başlangıç adresini kaydet (Kullanıcıya bunu vereceğiz)
@@ -203,6 +238,14 @@ int32_t my_malloc(int boyut)
 int main()
 {
     sistemi_baslat();
+
+    stack_push(5);
+
+    uint8_t x = stack_pop();
+
+    printf("deger: %d", x);
+
+    x = stack_pop();
 
     return 0;
 }
