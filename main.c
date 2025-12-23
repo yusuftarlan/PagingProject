@@ -256,15 +256,12 @@ void write_data_malloc(int32_t malloc_addr, int offset, uint8_t data){
 // --- MAIN SENARYOSU ---
 int main() {   
     sistemi_baslat();
-<<<<<<< HEAD
     int32_t x =  my_malloc(3);
     int32_t y = my_malloc(3);
     write_data_malloc(x, 0, 15);
     write_data_malloc(x, 1, 16);
     write_data_malloc(y, 0, 32);
     show_RAM(10, 4*1024, 0);
-=======
-
     printf("\n=== SENARYO 1: RAM DOLDURMA VE SAYFA DEGISIMI (FIFO) ===\n");
  
     int32_t pointers[20];
@@ -327,7 +324,6 @@ int main() {
 
     show_RAM(11, 5, 0);
     show_RAM(12, 5, 0);
->>>>>>> fb82ad6f10a7fce3404635b05b1664a39525acd5
 
     return 0;
 }
