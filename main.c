@@ -266,7 +266,7 @@ int main()
     write_data_malloc(x, 0, 15);
     write_data_malloc(x, 1, 16);
     write_data_malloc(y, 0, 32);
-    show_RAM(10, 15, 0);
+    show_RAM(10, 4*1024, 0);
 
     return 0;
 }
