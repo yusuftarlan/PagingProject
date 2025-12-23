@@ -267,6 +267,71 @@ int main()
     write_data_malloc(x, 1, 16);
     write_data_malloc(y, 0, 32);
     show_RAM(10, 4*1024, 0);
+=======
+
+    printf("\n=== SENARYO 1: RAM DOLDURMA VE SAYFA DEGISIMI (FIFO) ===\n");
+ 
+    int32_t pointers[20];
+ 
+    for(int i=0; i<14; i++) {
+        printf("\n>> Malloc %d. sayfa istiyor...\n", i+1);
+        pointers[i] = my_malloc(4000); 
+    }
+    printf("\n>> KRITIK AN: RAM Dolu iken yeni malloc istegi...\n");
+    int32_t extra = my_malloc(4000); 
+
+    // Eski VPN 10'a erişmeye çalışalım (Artık yok olmalı)
+    printf("\n>> TEST: Kovulan sayfaya (VPN 10) erisim testi:\n");
+    show_RAM(10, 5, 0); // "RAM'de değil" demeli.
+    
+    
+    uint32_t yeni_vpn = extra >> 12;
+    uint32_t sayfa_basi_adresi = yeni_vpn << 12;
+    write_data_malloc(sayfa_basi_adresi, 0, 15);
+    show_RAM(yeni_vpn, 5, 0); // Bunu göstermeli.
+
+
+    printf("\n=== SENARYO 2: FREE (BELLEK IADESI) ===\n");
+    
+    uint32_t vpn = extra >> 12;
+    uint32_t sayfa_basi = vpn << 12;
+    my_free(extra, 4000);
+
+    printf("\n>> TEST: Free edilen adrese (%d) veri yazma denemesi...\n", sayfa_basi);
+    write_data_malloc(sayfa_basi, 0, 46); 
+
+    printf("\n>> TEST: Free edilen sayfayi (VPN %d) goruntuleme...\n", vpn);
+    show_RAM(vpn, 5, 0);
+
+    printf("\n=== SENARYO 3: CAKISMA (COLLISION) ===\n");
+    heap_ptr = stack_ptr - 100; 
+    
+    printf("Heap Ucu: 0x%X, Stack Ucu: 0x%X\n", heap_ptr, stack_ptr);
+    
+    my_malloc(200); 
+
+
+    printf("\n=== SENARYO 4: ODAYI GERI KIRALAMA (RE-MAPPING) ===\n");
+
+    uint32_t kurtarilacak_vpn = extra >> 12; 
+
+    printf("[OS]: VPN %d icin tekrar yer aciliyor...\n", kurtarilacak_vpn);
+
+    // 2. Odaya yeni bir fiziksel çerçeve (Frame) bul
+    uint32_t yeni_pfn = fiziksel_cerceve_bul_veya_cal(kurtarilacak_vpn);
+
+    sayfa_maple(kurtarilacak_vpn, yeni_pfn);
+
+    printf("\n>> TEST: Odayi geri aldiktan sonra yazma denemesi...\n");
+    
+    uint32_t sayfanin_basi = kurtarilacak_vpn << 12;
+    write_data_malloc(sayfanin_basi, 0, 153);
+
+    show_RAM(kurtarilacak_vpn, 5, 0);
+
+    show_RAM(11, 5, 0);
+    show_RAM(12, 5, 0);
+>>>>>>> fb82ad6f10a7fce3404635b05b1664a39525acd5
 
     return 0;
 }
