@@ -189,39 +189,41 @@ uint8_t stack_pop()
 
 int32_t my_malloc(int boyut)
 {
-    // 1. Başlangıç adresini kaydet (Kullanıcıya bunu vereceğiz)
+    // 1. Başlangıç adresini kaydet
     uint32_t baslangic_adresi = heap_ptr;
 
-    // 2. Yeni sınırı hesapla (Heap YUKARI büyür)
-    // heap_ptr global olduğu için kalıcı olarak değişecek.
+    // 2. Yeni sınırı hesapla
     uint32_t yeni_sinir = heap_ptr + boyut;
 
-    // 3. SAYFA KONTROLÜ (En Önemli Kısım)
-    // İstenilen alan birden fazla sayfa sürebilir.
-    // Örn: Sayfa 10'un sonundayız, 5000 byte istedik -> Sayfa 11 ve 12'ye taşarız.
-
+    // 3. SAYFA KONTROLÜ
     uint32_t baslangic_vpn = baslangic_adresi >> 12;
     uint32_t bitis_vpn = yeni_sinir >> 12;
 
-    // Başlangıç sayfasından bitiş sayfasına kadar (dahil) kontrol et
     for (uint32_t vpn = baslangic_vpn; vpn <= bitis_vpn; vpn++)
     {
-
-        // Eğer bu sayfa tabloda yoksa (valid == false)
+        // Eğer bu sayfa tabloda yoksa
         if (page_table[vpn].valid == false)
         {
-            printf("\n[UYARI]: Heap alani genisletiliyor! (VPN: %d)\n", vpn);
-            printf("[OS]: Yeni sayfa tahsis ediliyor...\n");
+            
+            if (bos_frame_indis >= MAX_FRAME_SAYISI) 
+            {
+                printf("\n[KRITIK HATA]: Fiziksel RAM doldu! (Out of Memory)\n");
+                printf("Talep edilen VPN: %d icin yer yok. Toplam Frame: %d\n", vpn, MAX_FRAME_SAYISI);
+                return -1; 
+            }
+            // -------------------------------------------
 
-            // Yeni bir fiziksel çerçeve (frame) ver
-            // (Burada senin yazdığın ram doluluk kontrolünü de ekleyebilirsin)
+            printf("\n[UYARI]: Heap alani genisletiliyor! (VPN: %d)\n", vpn);
+            
+            // Yeni fiziksel çerçeve ver
             sayfa_maple(vpn, bos_frame_indis);
 
             // Sıradaki boş çerçeveyi güncelle
             (bos_frame_indis)++;
         }
     }
-    // 4. Global pointer'ı güncelle (Artık buraya kadar doluyuz)
+
+    // 4. Global pointer'ı güncelle (Sadece allocation başarılıysa buraya gelir)
     heap_ptr = yeni_sinir;
 
     printf("Malloc(%d) -> Baslangic: 0x%X, Yeni Heap Ucu: 0x%X\n", boyut, baslangic_adresi, heap_ptr);
@@ -232,22 +234,42 @@ int32_t my_malloc(int boyut)
 
 
 void show_RAM(int VPN, int size, bool from_end) {
+    uint32_t baslangic_fiziksel;
 
-    printf("--%d numarali RAM sayfasi(%d adet veri)--", VPN, size);
-    
-    if (from_end == true) {
-        uint32_t fiziksel_adres = adres_cevir(((VPN + 1) << 12) - 1);
-        for(int i = 0; i < size; i ++ ){
-            if (i % 10 == 0) printf("\n");
-            printf("%02X ", FIZIKSEL_RAM[fiziksel_adres - i]);
-        }
-    } else {
-        uint32_t fiziksel_adres = adres_cevir(VPN  << 12);
-        for(int i = 0; i < size; i ++ ){
-            if (i % 10 == 0) printf("\n");
-            printf("%02X ", FIZIKSEL_RAM[fiziksel_adres + i]);
-        }
+    // 1. Nereden okumaya başlayacağımızı belirle
+    if (from_end) { 
+        // STACK: Sayfanın son adresini bul
+        baslangic_fiziksel = adres_cevir(((VPN + 1) << 12) - 1);
+    } else { 
+        // HEAP: Sayfanın baş adresini bul
+        baslangic_fiziksel = adres_cevir(VPN << 12);
     }
+
+    // 2. Başlık Yazdır
+    printf("\n");
+    printf("----------------------------------------\n");
+    printf(" RAM KONUMU | Sayfa: %-3d | Boyut: %d\n", VPN, size);
+    printf("----------------------------------------\n");
+
+    // 3. Verileri Yazdır (Her satırda 10 veri)
+    for (int i = 0; i < size; i++) {
+        
+        // Satır başı işlemleri (Offset yazdırma)
+        if (i % 10 == 0) {
+            if (i != 0) printf("\n"); // İlk satır hariç alt satıra geç
+            printf(" [%03d]: ", i);   // Satır numarasını yaz (Örn: [000]: )
+        }
+
+        // Adresi hesapla ve veriyi çek
+        uint32_t hedef_adres;
+        if (from_end) hedef_adres = baslangic_fiziksel - i;
+        else          hedef_adres = baslangic_fiziksel + i;
+
+        // Veriyi Hex olarak bas (Aralara boşluk koy)
+        printf("%02X ", FIZIKSEL_RAM[hedef_adres]);
+    }
+
+    printf("\n----------------------------------------\n\n");
 }
 
 void write_data_malloc(int32_t malloc, int offset, uint8_t data){
@@ -265,7 +287,7 @@ int main()
     int32_t y = my_malloc(3);
     write_data_malloc(x, 0, 15);
     write_data_malloc(x, 1, 16);
-    write_data_malloc(y, 0, 32);
+    write_data_malloc(y, 0, 43);
     show_RAM(10, 15, 0);
 
     return 0;
