@@ -12,7 +12,7 @@
 
 #define FIZIKSEL_RAM_BOYUTU (64 * 1024) // 64 KB RAM
 #define MAX_FRAME_SAYISI (FIZIKSEL_RAM_BOYUTU / SAYFA_BOYUTU_BYTE) // 16 Frame
-
+#define DISK_KAPASITESI_VPN 4000 //2^20 8bitlik sayı için çok büyük 4000 simülasyon için ideal
 // --- VERİ YAPILARI ---
 typedef struct {
     uint32_t frame_number; 
@@ -20,6 +20,10 @@ typedef struct {
 } PageTableEntry;
 
 PageTableEntry page_table[SAYFA_TABLOSU_BOYUTU];
+
+//Swap edilmiş RAM frameleri SANAL_DISK e kopyalanacak
+uint8_t SANAL_DISK[DISK_KAPASITESI_VPN][SAYFA_BOYUTU_BYTE];
+
 uint8_t FIZIKSEL_RAM[FIZIKSEL_RAM_BOYUTU]; 
 
 // frame_owner[fiziksel_frame_no] = sanal_sayfa_no (VPN)
