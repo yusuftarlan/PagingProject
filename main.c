@@ -163,6 +163,30 @@ void stack_push(char veri) {
     if(fiziksel_adres != 0xFFFFFFFF) FIZIKSEL_RAM[fiziksel_adres] = veri;
 }
 
+uint8_t stack_pop()
+{
+   
+    // 1. ALT SINIR KONTROLÜ - Stack boş mu?
+    // Başlangıçta stack_ptr = 0x3E8FFF, hiç push yoksa bu değerdedir
+    uint32_t ust_sinir = ((STACK_BASLANGIC_VPN + 1) << 12) - 1;
+    if (stack_ptr >= ust_sinir)
+    {
+        printf("\n[HATA]: Stack bos! Pop yapilamaz.\n");
+        return 0; // Hata durumunda 0 döndür
+    }
+
+    // 2. Önce mevcut stack_ptr'den oku (push sonrası stack_ptr son yazılanı gösteriyor)
+    uint32_t fiziksel_adres = adres_cevir(stack_ptr);
+    uint8_t veri = FIZIKSEL_RAM[fiziksel_adres];
+
+    printf("Stack Pop: '%c' <- Sanal: 0x%X (VPN %d)\n", veri, stack_ptr, stack_ptr >> 12);
+
+    // 3. Sonra stack'i yukarı çek (adresi artır)
+    stack_ptr++;
+
+    return veri;
+}
+
 int32_t my_malloc(int boyut) {
     uint32_t baslangic_adresi = heap_ptr;
     uint32_t yeni_sinir = heap_ptr + boyut;
@@ -290,27 +314,6 @@ void senaryo2() {
 
 void senaryo3() {
     sistemi_baslat();
-    printf("\n=== SENARYO 3: RAM DOLDURMA VE SAYFA DEGISIMI (FIFO) ===\n");
- 
-    int32_t pointers[20];
- 
-    for(int i=0; i<14; i++) {
-        printf("\n>> Malloc %d. sayfa istiyor...\n", i+1);
-        pointers[i] = my_malloc(4000); 
-    }
-    printf("\n>> KRITIK AN: RAM Dolu iken yeni malloc istegi...\n");
-    int32_t extra = my_malloc(4000); 
-
-    // Eski VPN 10'a erişmeye çalışalım (Artık yok olmalı)
-    printf("\n>> TEST: Kovulan sayfaya (VPN 10) erisim testi:\n");
-    show_RAM(10, 5, 0); // "RAM'de değil" demeli.
-    
-    
-    uint32_t yeni_vpn = extra >> 12;
-    uint32_t sayfa_basi_adresi = yeni_vpn << 12;
-    write_data_malloc(sayfa_basi_adresi, 0, 15);
-    show_RAM(yeni_vpn, 5, 0); // Bunu göstermeli.
-
     
     printf("\n=== SENARYO 4: CAKISMA (COLLISION) ===\n");
     heap_ptr = stack_ptr - 100; 
@@ -342,6 +345,6 @@ void senaryo3() {
 // --- MAIN SENARYOSU ---
 int main(){
     
-    senaryo1();
+    senaryo3();
     return 0;
 }
