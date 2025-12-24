@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-
+#include "senaryo.h"
 // --- AYARLAR ---
 #define SAYFA_BOYUTU_KB 4
 #define SAYFA_BOYUTU_BYTE (SAYFA_BOYUTU_KB * 1024) // 4096 Byte
@@ -253,16 +253,44 @@ void write_data_malloc(int32_t malloc_addr, int offset, uint8_t data){
     FIZIKSEL_RAM[fiziksel_adres] = data;
 }
 
-// --- MAIN SENARYOSU ---
-int main() {   
+
+void senaryo1() {
     sistemi_baslat();
     int32_t x =  my_malloc(3);
     int32_t y = my_malloc(3);
     write_data_malloc(x, 0, 15);
     write_data_malloc(x, 1, 16);
     write_data_malloc(y, 0, 32);
-    show_RAM(10, 4*1024, 0);
-    printf("\n=== SENARYO 1: RAM DOLDURMA VE SAYFA DEGISIMI (FIFO) ===\n");
+    show_RAM(10, 50, 0);
+}
+
+void senaryo2() {
+    sistemi_baslat();
+    printf("\n=== SENARYO 2: RAM DOLDURMA VE SAYFA DEGISIMI (FIFO) ===\n");
+ 
+    int32_t pointers[20];
+ 
+    for(int i=0; i<14; i++) {
+        printf("\n>> Malloc %d. sayfa istiyor...\n", i+1);
+        pointers[i] = my_malloc(4000); 
+    }
+    printf("\n>> KRITIK AN: RAM Dolu iken yeni malloc istegi...\n");
+    int32_t extra = my_malloc(4000); 
+
+    // Eski VPN 10'a erişmeye çalışalım (Artık yok olmalı)
+    printf("\n>> TEST: Kovulan sayfaya (VPN 10) erisim testi:\n");
+    show_RAM(10, 5, 0); // "RAM'de değil" demeli.
+    
+    
+    uint32_t yeni_vpn = extra >> 12;
+    uint32_t sayfa_basi_adresi = yeni_vpn << 12;
+    write_data_malloc(sayfa_basi_adresi, 0, 15);
+    show_RAM(yeni_vpn, 5, 0); // Bunu göstermeli.
+}
+
+void senaryo3() {
+    sistemi_baslat();
+    printf("\n=== SENARYO 3: RAM DOLDURMA VE SAYFA DEGISIMI (FIFO) ===\n");
  
     int32_t pointers[20];
  
@@ -283,24 +311,10 @@ int main() {
     write_data_malloc(sayfa_basi_adresi, 0, 15);
     show_RAM(yeni_vpn, 5, 0); // Bunu göstermeli.
 
-
-    printf("\n=== SENARYO 2: FREE (BELLEK IADESI) ===\n");
     
-    uint32_t vpn = extra >> 12;
-    uint32_t sayfa_basi = vpn << 12;
-    my_free(extra, 4000);
-
-    printf("\n>> TEST: Free edilen adrese (%d) veri yazma denemesi...\n", sayfa_basi);
-    write_data_malloc(sayfa_basi, 0, 46); 
-
-    printf("\n>> TEST: Free edilen sayfayi (VPN %d) goruntuleme...\n", vpn);
-    show_RAM(vpn, 5, 0);
-
-    printf("\n=== SENARYO 3: CAKISMA (COLLISION) ===\n");
+    printf("\n=== SENARYO 4: CAKISMA (COLLISION) ===\n");
     heap_ptr = stack_ptr - 100; 
-    
     printf("Heap Ucu: 0x%X, Stack Ucu: 0x%X\n", heap_ptr, stack_ptr);
-    
     my_malloc(200); 
 
 
@@ -324,6 +338,10 @@ int main() {
 
     show_RAM(11, 5, 0);
     show_RAM(12, 5, 0);
-
+}
+// --- MAIN SENARYOSU ---
+int main(){
+    
+    senaryo2();
     return 0;
 }
