@@ -16,7 +16,9 @@
 // --- VERİ YAPILARI ---
 typedef struct {
     uint32_t frame_number; 
-    bool valid;            
+    bool valid; 
+    bool on_disk;  
+    bool dirty;         
 } PageTableEntry;
 
 PageTableEntry page_table[SAYFA_TABLOSU_BOYUTU];
@@ -52,6 +54,7 @@ int32_t my_malloc(int boyut);
 void my_free(int32_t adres, int boyut);
 void show_RAM(int VPN, int size, bool from_end);
 void write_data_malloc(int32_t malloc_addr, int offset, uint8_t data);
+void swap_out(uint32_t vpn_to_evict, uint32_t pfn);
 
 // --- TEMEL FONKSİYONLAR ---
 
@@ -59,6 +62,8 @@ void sistemi_sifirla() {
     for (int i = 0; i < SAYFA_TABLOSU_BOYUTU; i++) {
         page_table[i].valid = false;
         page_table[i].frame_number = 0;
+        page_table[i].on_disk = false;
+        page_table[i].dirty = false;
     }
     // Frame sahipliklerini sıfırla (-1 sahibi yok demek)
     for(int i=0; i < MAX_FRAME_SAYISI; i++) {
@@ -104,7 +109,6 @@ void sistemi_baslat() {
     stack_ptr = ((1000 + 1) << 12) - 1;
 }
 
-
 uint32_t fiziksel_cerceve_bul_veya_cal(uint32_t vpn_talep_eden) {
     uint32_t secilen_pfn;
 
@@ -123,14 +127,63 @@ uint32_t fiziksel_cerceve_bul_veya_cal(uint32_t vpn_talep_eden) {
     // Eski sahibini bul ve kov
     int32_t eski_vpn = frame_owner[secilen_pfn];
     if (eski_vpn != -1) {
+        // Sayfanın güncel olup olmadığı kontrolü. Eğer sayfa diskte yoksa veya kirliyse diske yazılır.
+        if (page_table[eski_vpn].on_disk == false) {
+            printf("  VPN [%d] diskte degil (Disk guncelleniyor)\n",eski_vpn);
+            swap_out(eski_vpn, page_table[eski_vpn].frame_number);
+        }
+        else if (page_table[eski_vpn].dirty == true){
+            printf("  %d nolu sayfa değiştirilmiş!(Disk güncelleniyor)\n",eski_vpn);
+            swap_out(eski_vpn, page_table[eski_vpn].frame_number);
+        }
+        else {
+            printf(" Sayfa temiz (Clean), diske yazma atlandi!\n");
+            }
+        }
+
         page_table[eski_vpn].valid = false; 
+        page_table[eski_vpn].dirty = false; 
         printf("  [EVICT]: VPN %d RAM'den atildi (Frame %d bosaltildi).\n", eski_vpn, secilen_pfn);
-    }
 
     // FIFO göstergesini güncelle (Döngüsel)
     fifo_ptr = (fifo_ptr + 1) % MAX_FRAME_SAYISI;
 
     return secilen_pfn;
+}
+
+// Örnek: VPN 15, Frame 3'te duruyor ve atılacak.
+void swap_out(uint32_t vpn_to_evict, uint32_t pfn) {
+    
+    // RAM'deki fiziksel adresi hesapla
+    uint32_t ram_adres = pfn * SAYFA_BOYUTU_BYTE;
+    
+    // KOPYALAMA: RAM[pfn] -> DISK[vpn]
+    // Dikkat: Hedef adres doğrudan 'vpn_to_evict' indeksidir!
+    memcpy(SANAL_DISK[vpn_to_evict], &FIZIKSEL_RAM[ram_adres], SAYFA_BOYUTU_BYTE);
+    
+    // Tabloyu güncelle
+    page_table[vpn_to_evict].valid = false;   // Artık RAM'de değil
+    page_table[vpn_to_evict].on_disk = true;  // Ama diskte güvende
+    page_table[vpn_to_evict].frame_number = 0; // PFN bilgisini silebiliriz
+    
+    printf("  [SWAP-OUT] VPN %d -> Disk[%d] konumuna yazildi.\n", vpn_to_evict, vpn_to_evict);
+}
+
+// Örnek: VPN 15'e erişilmek istendi ama valid=0.
+void swap_in(uint32_t vpn_to_restore, uint32_t new_pfn) {
+    
+    // Yeni tahsis edilen RAM adresi
+    uint32_t ram_adres = new_pfn * SAYFA_BOYUTU_BYTE;
+    
+    // KOPYALAMA: DISK[vpn] -> RAM[new_pfn]
+    memcpy(&FIZIKSEL_RAM[ram_adres], SANAL_DISK[vpn_to_restore], SAYFA_BOYUTU_BYTE);
+    
+    // Tabloyu güncelle
+    page_table[vpn_to_restore].valid = true;
+    page_table[vpn_to_restore].frame_number = new_pfn;
+    // on_disk = true kalabilir (Dirty bit mantığı yoksa yedeği dursun)
+    
+    printf("[SWAP-IN] Disk[%d] -> VPN %d (Frame %d) konumuna yuklendi.\n", vpn_to_restore, vpn_to_restore, new_pfn);
 }
 
 uint32_t adres_cevir(uint32_t sanal_adres) {
@@ -163,12 +216,13 @@ void stack_push(char veri) {
         sayfa_maple(vpn, pfn);
     }
 
+    page_table[vpn].dirty = true;
+
     uint32_t fiziksel_adres = adres_cevir(stack_ptr);
     if(fiziksel_adres != 0xFFFFFFFF) FIZIKSEL_RAM[fiziksel_adres] = veri;
 }
 
-uint8_t stack_pop()
-{
+uint8_t stack_pop(){
    
     // 1. ALT SINIR KONTROLÜ - Stack boş mu?
     // Başlangıçta stack_ptr = 0x3E8FFF, hiç push yoksa bu değerdedir
@@ -238,6 +292,22 @@ void my_free(int32_t adres, int boyut) {
     printf("------------------------------------------------------\n");
 }
 
+void show_DISK(int VPN, int size, bool from_end){
+
+    printf("\n--------------------------------------\n");
+    printf(" DISK DOKUMU | Sayfa: %-3d | Boyut: %d\n", VPN, size);
+    printf(" Mod: %s", from_end ? "STACK" : "HEAP |\n");
+    printf("----------------------------------------\n");
+
+    for (int i = 0; i < size; i++) {
+        if (i % 10 == 0 && i != 0) printf("\n");
+        if (i % 10 == 0) printf(" [%03d]: ", i);
+        printf("%02X ", SANAL_DISK[VPN][i]);
+    }
+    printf("\n----------------------------------------\n\n");
+}
+
+
 void show_RAM(int VPN, int size, bool from_end) {
     // Eğer sayfa takas edildiyse (swap-out), göstermeye çalışma
     if (!page_table[VPN].valid) {
@@ -275,7 +345,7 @@ void write_data_malloc(int32_t malloc_addr, int offset, uint8_t data){
         printf("[HATA]: Gecersiz hafizaya erisim! (Segmentation Fault) Adres: 0x%X\n", malloc_addr + offset);
         return;
     }
-
+    page_table[vpn].dirty = true;
     uint32_t fiziksel_adres = adres_cevir(malloc_addr + offset);
     FIZIKSEL_RAM[fiziksel_adres] = data;
 }
@@ -302,6 +372,7 @@ void senaryo2() {
         printf("\n>> Malloc %d. sayfa istiyor...\n", i+1);
         pointers[i] = my_malloc(4000); 
     }
+    write_data_malloc(pointers[0], 0, 64);
     printf("\n>> KRITIK AN: RAM Dolu iken yeni malloc istegi...\n");
     int32_t extra = my_malloc(4000); 
 
@@ -314,9 +385,11 @@ void senaryo2() {
     uint32_t sayfa_basi_adresi = yeni_vpn << 12;
     write_data_malloc(sayfa_basi_adresi, 0, 15);
     show_RAM(yeni_vpn, 5, 0); // Bunu göstermeli.
+    show_DISK(10,20,0);
 }
 
 void senaryo3() {
+    /*
     sistemi_baslat();
     
     printf("\n=== SENARYO 4: CAKISMA (COLLISION) ===\n");
@@ -344,11 +417,11 @@ void senaryo3() {
     show_RAM(kurtarilacak_vpn, 5, 0);
 
     show_RAM(11, 5, 0);
-    show_RAM(12, 5, 0);
+    show_RAM(12, 5, 0); */
 }
 // --- MAIN SENARYOSU ---
 int main(){
     
-    senaryo3();
+    senaryo2();
     return 0;
 }
