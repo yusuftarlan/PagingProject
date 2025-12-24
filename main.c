@@ -193,8 +193,37 @@ uint32_t adres_cevir(uint32_t sanal_adres) {
     if (page_table[vpn].valid) {
         uint32_t pfn = page_table[vpn].frame_number;
         return (pfn << OFFSET_BITS) | offset;
+    }else {
+        0xFFFFFFFF;
+    }
+}
+
+// Page fault'u ele alan ayrı bir fonksiyon
+uint32_t sayfa_eris(uint32_t sanal_adres) {
+    uint32_t vpn = sanal_adres >> OFFSET_BITS;
+    
+    // 1. Önce normal çeviriyi dene
+    uint32_t fiziksel = adres_cevir(sanal_adres);
+    
+    if (fiziksel != 0xFFFFFFFF) {
+        return fiziksel; // Başarılı
+    }
+    
+    // 2. Page Fault! Diskte mi kontrol et
+    if (page_table[vpn].on_disk) {
+        printf("  [PAGE FAULT] VPN %d diskte, yukleniyor...\n", vpn);
+        
+        // Yeni frame bul (gerekirse swap-out yapar)
+        uint32_t yeni_pfn = fiziksel_cerceve_bul_veya_cal(vpn);
+        
+        // Diskten yükle
+        swap_in(vpn, yeni_pfn);     
+        // Şimdi tekrar çevir
+        return adres_cevir(sanal_adres);
     } else {
-        return 0xFFFFFFFF; // Page Fault
+        // Ne RAM'de ne diskte - gerçek hata!
+        printf("  [SEGFAULT] VPN %d hic tahsis edilmemis!\n", vpn);
+        return 0xFFFFFFFF;
     }
 }
 
@@ -218,7 +247,7 @@ void stack_push(char veri) {
 
     page_table[vpn].dirty = true;
 
-    uint32_t fiziksel_adres = adres_cevir(stack_ptr);
+    uint32_t fiziksel_adres = sayfa_eris(stack_ptr);
     if(fiziksel_adres != 0xFFFFFFFF) FIZIKSEL_RAM[fiziksel_adres] = veri;
 }
 
@@ -234,7 +263,7 @@ uint8_t stack_pop(){
     }
 
     // 2. Önce mevcut stack_ptr'den oku (push sonrası stack_ptr son yazılanı gösteriyor)
-    uint32_t fiziksel_adres = adres_cevir(stack_ptr);
+    uint32_t fiziksel_adres = sayfa_eris(stack_ptr);
     uint8_t veri = FIZIKSEL_RAM[fiziksel_adres];
 
     printf("Stack Pop: '%c' <- Sanal: 0x%X (VPN %d)\n", veri, stack_ptr, stack_ptr >> 12);
@@ -316,8 +345,8 @@ void show_RAM(int VPN, int size, bool from_end) {
     }
 
     uint32_t baslangic_fiziksel;
-    if (from_end) baslangic_fiziksel = adres_cevir(((VPN + 1) << 12) - 1);
-    else          baslangic_fiziksel = adres_cevir(VPN << 12);
+    if (from_end) baslangic_fiziksel = sayfa_eris(((VPN + 1) << 12) - 1);
+    else          baslangic_fiziksel = sayfa_eris(VPN << 12);
 
     printf("\n----------------------------------------\n");
     printf(" RAM DOKUMU | Sayfa: %-3d | Boyut: %d\n", VPN, size);
@@ -346,12 +375,12 @@ void write_data_malloc(int32_t malloc_addr, int offset, uint8_t data){
         return;
     }
     page_table[vpn].dirty = true;
-    uint32_t fiziksel_adres = adres_cevir(malloc_addr + offset);
+    uint32_t fiziksel_adres = sayfa_eris(malloc_addr + offset);
     FIZIKSEL_RAM[fiziksel_adres] = data;
 }
 
 
-void senaryo1() {
+void senaryo1() { //MALLOC TAHİSİSİ TESTTİ
     sistemi_baslat();
     printf("\n=== SENARYO 1: HEAP BOLGESINDEN 2 MALLOC TAHSISI ===\n");
     int32_t x =  my_malloc(3);
@@ -362,7 +391,7 @@ void senaryo1() {
     show_RAM(10, 50, 0);
 }
 
-void senaryo2() {
+void senaryo2() { //swap-out testi
     sistemi_baslat();
     printf("\n=== SENARYO 2: RAM DOLDURMA VE SAYFA DEGISIMI (FIFO) ===\n");
  
@@ -388,40 +417,62 @@ void senaryo2() {
     show_DISK(10,20,0);
 }
 
-void senaryo3() {
-    /*
+void senaryo3() { // swap-in testi
     sistemi_baslat();
+    printf("\n=== SENARYO 3: SWAP-IN TESTI ===\n");
     
-    printf("\n=== SENARYO 4: CAKISMA (COLLISION) ===\n");
-    heap_ptr = stack_ptr - 100; 
-    printf("Heap Ucu: 0x%X, Stack Ucu: 0x%X\n", heap_ptr, stack_ptr);
-    my_malloc(200); 
-
-
-    printf("\n=== SENARYO 4: ODAYI GERI KIRALAMA (RE-MAPPING) ===\n");
-
-    uint32_t kurtarilacak_vpn = extra >> 12; 
-
-    printf("[OS]: VPN %d icin tekrar yer aciliyor...\n", kurtarilacak_vpn);
-
-    // 2. Odaya yeni bir fiziksel çerçeve (Frame) bul
-    uint32_t yeni_pfn = fiziksel_cerceve_bul_veya_cal(kurtarilacak_vpn);
-
-    sayfa_maple(kurtarilacak_vpn, yeni_pfn);
-
-    printf("\n>> TEST: Odayi geri aldiktan sonra yazma denemesi...\n");
+    int32_t pointers[20];
     
-    uint32_t sayfanin_basi = kurtarilacak_vpn << 12;
-    write_data_malloc(sayfanin_basi, 0, 153);
-
-    show_RAM(kurtarilacak_vpn, 5, 0);
-
-    show_RAM(11, 5, 0);
-    show_RAM(12, 5, 0); */
+    // 1. RAM'i doldur (16 frame var, 4'ü heap/stack için kullanıldı, 12 tane daha ekle)
+    for(int i = 0; i < 14; i++) {
+        printf("\n>> Malloc %d. sayfa istiyor...\n", i + 1);
+        pointers[i] = my_malloc(4000); 
+    }
+    
+    // 2. İlk sayfaya (VPN 10) veri yaz
+    write_data_malloc(pointers[0], 0, 0xAA);
+    write_data_malloc(pointers[0], 1, 0xBB);
+    write_data_malloc(pointers[0], 2, 0xCC);
+    printf("\n>> VPN 10'a veri yazildi: AA BB CC\n");
+    show_RAM(10, 10, 0);
+    
+    // 3. Yeni malloc ile VPN 10'u diske at (swap-out)
+    printf("\n>> KRITIK AN: RAM Dolu, yeni malloc VPN 10'u kovacak...\n");
+    int32_t extra = my_malloc(4000);
+    
+    // 4. VPN 10 artık diskte olmalı
+    printf("\n>> VPN 10 durumu kontrol ediliyor:\n");
+    printf("   valid: %d, on_disk: %d\n", page_table[10].valid, page_table[10].on_disk);
+    show_RAM(10, 5, 0);  // "RAM'de değil" demeli
+    show_DISK(10, 10, 0); // Diskte AA BB CC görünmeli
+    
+    // 5. SWAP-IN TESTI: VPN 10'a tekrar erişim
+    printf("\n>> SWAP-IN TESTI: VPN 10'a tekrar erisiliyor...\n");
+    uint32_t sanal_adres = 10 << 12; // VPN 10'un başlangıç adresi
+    
+    // sayfa_eris() kullanarak page fault tetikle ve swap-in yap
+    uint32_t fiziksel = sayfa_eris(sanal_adres);
+    
+    if (fiziksel != 0xFFFFFFFF) {
+        printf("\n>> BASARILI! VPN 10 tekrar RAM'e yuklendi.\n");
+        printf("   Fiziksel adres: 0x%X\n", fiziksel);
+        printf("   Okunan veri: 0x%02X (beklenen: 0xAA)\n", FIZIKSEL_RAM[fiziksel]);
+        
+        // RAM'deki veriyi göster
+        show_RAM(10, 10, 0);
+    } else {
+        printf("\n>> HATA! Swap-in basarisiz.\n");
+    }
+    
+    // 6. Özet
+    printf("\n=== SWAP-IN TESTI SONUCU ===\n");
+    printf("VPN 10 -> Frame %d (valid: %d)\n", 
+           page_table[10].frame_number, page_table[10].valid);
 }
+
 // --- MAIN SENARYOSU ---
 int main(){
     
-    senaryo2();
+    senaryo3();
     return 0;
 }
