@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-#include "senaryo.h"
 // --- AYARLAR ---
 #define SAYFA_BOYUTU_KB 4
 #define SAYFA_BOYUTU_BYTE (SAYFA_BOYUTU_KB * 1024) // 4096 Byte
@@ -256,6 +255,7 @@ void write_data_malloc(int32_t malloc_addr, int offset, uint8_t data){
 
 void senaryo1() {
     sistemi_baslat();
+    printf("\n=== SENARYO 1: HEAP BOLGESINDEN 2 MALLOC TAHSISI ===\n");
     int32_t x =  my_malloc(3);
     int32_t y = my_malloc(3);
     write_data_malloc(x, 0, 15);
@@ -342,6 +342,6 @@ void senaryo3() {
 // --- MAIN SENARYOSU ---
 int main(){
     
-    senaryo2();
+    senaryo1();
     return 0;
 }
