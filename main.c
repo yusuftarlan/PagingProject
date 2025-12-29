@@ -470,9 +470,91 @@ void senaryo3() { // swap-in testi
            page_table[10].frame_number, page_table[10].valid);
 }
 
-// --- MAIN SENARYOSU ---
-int main(){
+void senaryo4() {
+    sistemi_baslat();
+    printf("\n=== SENARYO 4: STACK VE FREE ISLEMLERI ===\n");
+
+    printf("\n--- ADIM 1: STACK TESTI (LIFO) ---\n");
+    // Stack'e veri atıyoruz (Yukarıdan aşağıya 1000. sayfa)
+    stack_push('A');
+    stack_push('B');
+    stack_push('C');
+
+    // Stack'i RAM'de göster (Sondan başlayarak)
+    // VPN 1000 (Stack Başlangıcı)
+    show_RAM(1000, 5, true); 
+
+    // Verileri geri çekelim
+    printf("\n>> Stack Pop Islemleri:\n");
+    stack_pop(); // C
+    stack_pop(); // B
     
-    senaryo3();
+    printf("\n--- ADIM 2: FREE (BELLEK IADESI) TESTI ---\n");
+    // Heap'ten yer al
+    int32_t ptr = my_malloc(100);
+    uint32_t vpn = ptr >> 12;
+    
+    // Veri yaz
+    write_data_malloc(ptr, 0, 0x99);
+    printf(">> Veri yazildi (0x99). RAM Durumu:\n");
+    show_RAM(vpn, 5, 0);
+
+    // Free et
+    my_free(ptr, 100);
+
+    // Free edilen yere yazmaya çalış (HATA VERMELİ)
+    printf("\n>> TEST: Free edilen alana yazma denemesi...\n");
+    write_data_malloc(ptr, 0, 0x88);
+
+    // Tekrar Malloc yaparak odayı geri al
+    printf("\n>> TEST: Ayni yeri tekrar Malloc ile aliyoruz...\n");
+    // Hile yapıp heap_ptr'yi geri almıyoruz ama sistem yeni sayfayı oraya mapleyecek
+    // Simülasyon gereği aynı VPN'i tekrar aktif etmek için:
+    page_table[vpn].valid = true; 
+    page_table[vpn].frame_number = fiziksel_cerceve_bul_veya_cal(vpn);
+    printf("   [MANUEL]: VPN %d tekrar aktif edildi.\n", vpn);
+
+    write_data_malloc(ptr, 0, 0x77);
+    printf(">> Yeni veri yazildi (0x77). RAM Durumu:\n");
+    show_RAM(vpn, 5, 0);
+}
+
+void menu() {
+    int secim = 0;
+    while(1) {
+        printf("\n============================================\n");
+        printf("      SANAL BELLEK SIMULASYONU (OS)         \n");
+        printf("============================================\n");
+        printf(" 1. Senaryo 1: Basit Malloc ve RAM Yazma\n");
+        printf(" 2. Senaryo 2: RAM Doldurma ve Swap-Out (FIFO)\n");
+        printf(" 3. Senaryo 3: Swap-In (Diskten Geri Yukleme)\n");
+        printf(" 4. Senaryo 4: Stack ve Free (Bellek Iadesi)\n");
+        printf(" 5. Cikis\n");
+        printf("--------------------------------------------\n");
+        printf(" Seciminiz [1-5]: ");
+        
+        if (scanf("%d", &secim) != 1) {
+            // Harf girilirse sonsuz döngüyü engelle
+            while(getchar() != '\n'); 
+            secim = 0;
+        }
+
+        switch(secim) {
+            case 1: senaryo1(); break;
+            case 2: senaryo2(); break;
+            case 3: senaryo3(); break;
+            case 4: senaryo4(); break;
+            case 5: printf("Simulasyon sonlandiriliyor...\n"); return;
+            default: printf("\n[HATA]: Gecersiz secim! Lutfen tekrar deneyin.\n");
+        }
+        
+        printf("\n>> Ana menuye donmek icin Enter'a basin...");
+        getchar(); getchar(); // Bekleme yap
+    }
+}
+
+int main() {   
+    menu();
     return 0;
 }
+
